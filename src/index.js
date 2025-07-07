@@ -4,7 +4,7 @@ import { View } from './view.js';
 let stacker = new APPStacker;
 // stacker.specificBoardState();
 stacker.spawn();
-stacker.setGarbageList([1, 0, 0, 2, 0, 0, 1, 0]);
+stacker.setGarbageList([0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 4, 0, 0]);
 
 let bot;
 
@@ -37,8 +37,10 @@ function animate() {
             if (hold == '' && hold != stacker.hold) {
             //   console.log("add peice "+ stacker.queue.slice(-2) );
               bot.postMessage({"type":"new_piece", "piece":stacker.queue.slice(-2,-1)});
+              // console.log(JSON.stringify({"type":"new_piece", "piece":stacker.queue.slice(-2,-1)}));
             }
             bot.postMessage({"type":"new_piece", "piece":stacker.queue.slice(-1)});
+            // console.log(JSON.stringify({"type":"new_piece", "piece":stacker.queue.slice(-1)}));
             // console.log("add peice "+ stacker.queue.slice(-1));
         }
         // update the whole board
@@ -57,12 +59,15 @@ function animate() {
             // console.log(gameMsg);
             // gameMsg["back_to_back_num"] = stacker.b2b;
             bot.postMessage(gameMsg);
+            // console.log(JSON.stringify(gameMsg));
+            // setTimeout(getSuggest, 200);
+            return;
             // // bot.postMessage({"type":"stop"});
         }
         // send tbp request to bot
         // count++;
         // if (count < 6)
-        setTimeout(getSuggest, 200);
+        // setTimeout(getSuggest, 200);
         return;
     }
     // inputs.shift();
@@ -71,13 +76,17 @@ function animate() {
 }
 setInterval(animate, 70);
 
-// document.getElementById("next").addEventListener("click", function() {
-//     console.log(this.id);
-//     getSuggest();
-// });
+document.getElementById("next").addEventListener("click", function() {
+    // console.log(this.id);
+    getSuggest();
+});
 
 function getSuggest() {
     bot.postMessage({"type":"suggest"});
+}
+
+function getTestGameMsg() {
+    return {"type":"start","hold":"T","combo":0,"back_to_back":false,"board":[["G","G","G","G","G","G","G","G","G",null],["G","G","G","G","G","G","G","G","G",null],["G","G","G","G","G","G","G","G","G",null],["G","G","G","G","G","G","G","G","G",null],["G","G","G","G","G","G","G","G","G",null],["G","G","G","G","G","G","G","G","G",null],["G","G","G","G","G","G","G","G","G",null],["G","G","G","G","G","G","G","G","G",null],["G","G","G",null,"G","G","G","G","G","G"],["O","O",null,null,null,"S","S","Z","L","I"],["O","O","J",null,null,null,"S","Z","Z","I"],["J","J","J",null,null,"S","S","L","Z","I"],[null,null,null,null,null,"S","L","L","L","L"],[null,null,null,null,null,null,"L","L","L",null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null]],"queue":["Z","S","T","I","O","J"]};
 }
 
 function getEmptyBoard() {
@@ -92,7 +101,7 @@ export function start(botPath, atk) {
 
     //"queue":["I","T","I","L","O","Z"]
     // stacker.convertBoard(gameMsg["board"]);
-    // console.log(gameMsg);
+    // console.log(JSON.stringify(gameMsg));
     
     
     bot = new Worker(botPath);
@@ -105,14 +114,18 @@ export function start(botPath, atk) {
                 break;
             case "ready":
                 bot.postMessage(gameMsg);
-                setTimeout(getSuggest, 200);
+                // bot.postMessage(getTestGameMsg());
+                // setTimeout(getSuggest, 200);
                 break;
             // do pathfinding and push to inputs then animate will process steps inside
             case "suggestion":
                 let move = m.data.moves[0];
-                // console.log(move);
+                // console.log(move.location.type + " " + move.spin);
                 hold = stacker.hold;
+                console.log(JSON.stringify({"type":"play", "move":m.data.moves[0]}));
                 let steps = stacker.pathFinding(move.location, move.spin);
+                console.log("steps:");
+                console.log(steps);
                 bot.postMessage({"type":"play", "move":m.data.moves[0]});
                 steps.push("delay");
                 inputs = steps;
