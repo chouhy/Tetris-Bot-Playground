@@ -5,6 +5,7 @@ class Stacker {
         Object.assign(this, {
             matrix: [],
             hold: "",
+            // queue: "ZSTIOJ",
             queue: "",
             piece: null,
             comboing: false,
@@ -13,11 +14,20 @@ class Stacker {
     }
     specificBoardState() {
         this.matrix = [
-           "XXXXXX___X",
-           "XXXXX____X",
-           "XXXXXX___X",
-           "XXXXXX___X",
-           "XXXXXX__XX"
+           "XXXXXXXXX_",
+           "XXXXXXXXX_",
+           "XXXXXXXXX_",
+           "XXXXXXXXX_",
+           "XXXXXXXXX_",
+           "XXXXXXXXX_",
+           "XXXXXXXXX_",
+           "XXXXXXXXX_",
+           "XXX_XXXXXX",
+           "XX___XXXXX",
+           "XXX___XXXX",
+           "XXX__XXXXX",
+           "_____XXXXX",
+           "______XXX_"
         ];
     }
     copy() {
@@ -303,7 +313,7 @@ class VSStacker extends RandomBagStacker {
         this._computeGhost();
     }
     _cancel(attack) {
-        console.log("atk = "+attack);
+        // console.log("atk = "+attack);
         while (attack > 0 && this.garbage.length > 0) {
             if (this.garbage[0].height > attack) {
                 this.garbage[0].height -= attack;
@@ -342,12 +352,12 @@ class VSStacker extends RandomBagStacker {
             this.garbageTick = false;
             if (this.comboing) {
                 if (this._atkCal) {
-                    console.log("peice:"+this._prevType);
-                    console.log("combos:"+this.combos);
-                    console.log("spin:"+this._spin);                    
-                    console.log("b2b:"+this.b2b);
-                    console.log("combos:"+this.combos);
-                    console.log("clear:"+this.clear);
+                    // console.log("peice:"+this._prevType);
+                    // console.log("combos:"+this.combos);
+                    // console.log("spin:"+this._spin);                    
+                    // console.log("b2b:"+this.b2b);
+                    // console.log("combos:"+this.combos);
+                    // console.log("clear:"+this.clear);
                     this._cancel(this._atkCal.apply(this.combos, this.b2b, this.clear, this._spin, this._prevType, this.isAllClear()));
                 }
                 return;
@@ -489,7 +499,33 @@ const reverseOp = {
 const ops = ["up","l", "r", "cw", "ccw"];
 
 class PathFindingStacker extends TBPStacker {
-   
+    constructor() {
+        super();
+        Object.assign(this, {
+            _pathFindMap: Array.from({ length: ruleset.cols }, 
+                () => Array.from({ length: ruleset.rows }, 
+                    () => {
+                        return {
+                            "spawn": false, 
+                            "right": false,
+                            "reverse": false,
+                            "left": false
+                        };
+                    })),
+        });
+    }
+    _resetPathFindMap() {
+        for (let col = 0; col < ruleset.cols; col++) {
+            for (let row = 0; row < ruleset.rows; row++) {
+                this._pathFindMap[col][row] = {
+                    "spawn": false,
+                    "right": false,
+                    "reverse": false,
+                    "left": false,
+                };
+            }
+        }
+    }
     _transformForPath(piece, tfs) {
         let { x, y, rotation } = piece;
         let attempt = 0;
@@ -514,8 +550,15 @@ class PathFindingStacker extends TBPStacker {
         piece.y += dy;
         piece.rotation = r;
     }
-    _getTransformOptions(piece, rotate) {
-        let { x, y, rotation } = piece;
+    _toGround(piece) {
+        while(!this._intersects(piece)) {
+            piece.y--;
+        }
+        piece.y++;
+    }
+    _getTransformOptions(curPiece, rotate) {
+        let { x, y } = curPiece;
+        let piece = Object.assign({}, curPiece);
         let attempt = 0;
         let options = [];
         let tfs = kicks(piece, rotate);
@@ -524,6 +567,7 @@ class PathFindingStacker extends TBPStacker {
             piece.y = y + dy;
             piece.rotation = r;
             if (!this._intersects(piece)) {
+                this._toGround(piece);
                 this._transformForPath(piece, kicks(piece, rotate == "cw"?"ccw":"cw"));
                 if (piece.x == x && piece.y == y) {
                     options.push(attempt);
@@ -531,10 +575,6 @@ class PathFindingStacker extends TBPStacker {
             }
             attempt++;
         }
-        // reset 
-        piece.x = x;
-        piece.y = y;
-        piece.rotation = rotation;
         return options;
     }
     _isFloating(curPiece) {
@@ -559,13 +599,19 @@ class PathFindingStacker extends TBPStacker {
     }
     // find path until reachable to sky
     _pathFinding(curPiece, test) {
-        if (this.isSkyReachable(curPiece)) 
+        if (!this._isFloating(curPiece) && this.isSkyReachable(curPiece)) 
             return true;
+        if (test.length > 50) return false;
         for (let op of ops) {
             let lastOp;
             switch(op){
             case "up":
+                if (curPiece.y + 1 >= ruleset.rows || 
+                    this._pathFindMap[curPiece.x][curPiece.y+1][curPiece.rotation]) {
+                    continue;
+                }
                 curPiece.y++;
+                this._pathFindMap[curPiece.x][curPiece.y][curPiece.rotation] = true;
                 if (!this._intersects(curPiece)) {
                     test.push({op:op});
                     if(this._pathFinding(curPiece, test)) return true;
@@ -576,31 +622,39 @@ class PathFindingStacker extends TBPStacker {
             case "l":
             case "r":
                 let dx = (op == "l") ? -1 : 1;
-                lastOp = test.at(-1);
-                // prevent infinite lrlrlr movement
-                if (lastOp && (lastOp.op == "l" || lastOp.op == "r") && lastOp.op != op) continue;
+                if (curPiece.x + dx < 0 ||
+                    curPiece.x + dx >= ruleset.cols ||
+                    this._pathFindMap[curPiece.x + dx][curPiece.y][curPiece.rotation]) {
+                    continue;
+                }
                 let oldX = curPiece.x;
                 curPiece.x += dx;
-                
+                this._pathFindMap[curPiece.x][curPiece.y][curPiece.rotation] = true;
                 while (!this._intersects(curPiece)) {
                     test.push({op:op});
                     if (!this._isFloating(curPiece) && this._pathFinding(curPiece, test)) return true;
                     curPiece.x += dx;
+                    if (curPiece.x >= 0 && curPiece.x < ruleset.cols) {
+                        this._pathFindMap[curPiece.x][curPiece.y][curPiece.rotation] = true;
+                    }
                 }
                 while (test.length > 0 && test.at(-1).op == op) test.pop();
                 curPiece.x = oldX;
                 break;
             case "cw":
             case "ccw":
-                lastOp = test.at(-1);
                 // attempts in options are tested, no intersections
                 let options = this._getTransformOptions(curPiece, op);
                 let { x, y, rotation } = curPiece;
                 for (let i = options.length-1; i >= 0; i--) {
-                    // prevent infinite cw cww loop
-                    if (lastOp && (lastOp.op == "cw" || lastOp.op == "ccw") && lastOp.op != op && lastOp.idx == options[i])
-                        continue;
                     this._transformSimple(curPiece, kicks(curPiece, op), options[i]);
+                    if (this._pathFindMap[curPiece.x][curPiece.y][curPiece.rotation]) {
+                        curPiece.x = x;
+                        curPiece.y = y;
+                        curPiece.rotation = rotation;
+                        continue;
+                    }
+                    this._pathFindMap[curPiece.x][curPiece.y][curPiece.rotation] = true;
                     test.push({op:op, idx:options[i]});
                     if (this._pathFinding(curPiece, test)) return true;
                     // reset
@@ -616,9 +670,9 @@ class PathFindingStacker extends TBPStacker {
         return false;
     }
 
-    pathFinding(location, spin) {
+    pathFinding(location, spin, reverse = false) {
         super.pathFinding(location, spin);
-
+        this._resetPathFindMap();
         let curPiece = this._targetPeice;
         let type = curPiece.type;
         let [x, y] = ruleset.shapes[type].spawn;
@@ -626,7 +680,8 @@ class PathFindingStacker extends TBPStacker {
         let spawnPiece = { type, x, y, rotation, ghostY: null };
         let test = [];
         let steps = [];
-        curPiece._float = false;
+        this._resetPathFindMap();
+        this._pathFindMap[curPiece.x][curPiece.y][curPiece.rotation] = true;
         // console.log(this._targetPeice);
         if (this._pathFinding(curPiece, test)) {
             if (this.piece.type != curPiece.type) {
@@ -666,6 +721,11 @@ class PathFindingStacker extends TBPStacker {
             }
         }
         else {
+            if (!reverse && ["I", "Z", "S"].includes(curPiece.type)) {
+                console.warn("pathFinding failed, trying to change orientation");
+                this._changeOrientaion(location);
+                return this.pathFinding(location, spin, true);
+            }
             throw new Error("cannot drop this piece");
         }
         if (steps.slice(-1) == "sd") steps.pop();
@@ -674,7 +734,39 @@ class PathFindingStacker extends TBPStacker {
         // console.log(steps);
         return steps;
     }
+    _changeOrientaion(location){
+        let { orientation, type, x, y } = location;
+        let newOrientation = ORIENTATION[type][orientation];
+        location.orientation = newOrientation.orientation;
+        location.x = x + newOrientation.dx;
+        location.y = y + newOrientation.dy;
+        console.log("================");
+        console.log("new orientation:");
+        console.log(location);
+        console.log("================");
+    }
 }
+
+const ORIENTATION = {
+    "I" : {
+        "north" : { orientation: "south", dx: 1, dy: 0 },
+        "east" : { orientation: "west", dx: 0, dy: -1 },
+        "south" : { orientation: "north", dx: -1, dy: 0 },
+        "west" : { orientation: "east", dx: 0, dy: 1 },
+    },
+    "Z" : {
+        "north" : { orientation: "south", dx: 0, dy: 1 },
+        "east" : { orientation: "west", dx: 1, dy: 0 },
+        "south" : { orientation: "north", dx: 0, dy: -1 },
+        "west" : { orientation: "east", dx: -1, dy: 0 },
+    },
+    "S" : {
+        "north" : { orientation: "south", dx: 0, dy: 1 },
+        "east" : { orientation: "west", dx: 1, dy: 0 },
+        "south" : { orientation: "north", dx: 0, dy: -1 },
+        "west" : { orientation: "east", dx: -1, dy: 0 },
+    },
+};
 // attack per peice
 class APPStacker extends PathFindingStacker {
     constructor() {
