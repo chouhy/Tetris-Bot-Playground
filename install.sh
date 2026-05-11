@@ -1,2 +1,4 @@
 #!/bin/bash
-cp ./src/* ./static/
+set -euo pipefail
+
+./scripts/build-dist.sh
