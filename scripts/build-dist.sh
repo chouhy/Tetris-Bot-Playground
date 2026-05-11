@@ -13,7 +13,7 @@ for path in _cc _cc2 allspin build.emscripten build.emscripten.old; do
   cp -a "$ROOT_DIR/runtime/$path" "$DIST_DIR/$path"
 done
 
-# Overlay app sources as the single source of truth
-cp -a "$ROOT_DIR/src/." "$DIST_DIR/"
+# Overlay app sources, but keep HTML shell from public/
+find "$ROOT_DIR/src" -mindepth 1 -maxdepth 1 ! -name '*.html' -exec cp -a {} "$DIST_DIR/" \;
 
 echo "Built dist at: $DIST_DIR"
