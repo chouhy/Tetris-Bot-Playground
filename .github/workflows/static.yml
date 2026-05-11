@@ -32,7 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Build dist site
-        run: ./scripts/build-dist.sh
+        run: bash ./scripts/build-dist.sh
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
