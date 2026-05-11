@@ -1,10 +1,10 @@
-import { APPStacker} from './stacker.js';
+import { APPStacker } from './stacker.js';
 import { View } from './view.js';
 
 let stacker = new APPStacker;
 // stacker.specificBoardState();
 stacker.spawn();
-stacker.setGarbageList([0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 4, 0, 0]);
+stacker.setGarbageList([2, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 2, 1, 3, 0, 0, 0, 0, 0, 4, 0, 0]);
 
 let bot;
 
@@ -25,12 +25,40 @@ view.resize();
 view.draw();
 
 let inputs = null;
+let isDead = false;
+
+function getMismatchSnapshot() {
+    let board = getEmptyBoard();
+    stacker.convertBoard(board);
+    return {
+        matrix: stacker.matrix.map(row => row.slice()),
+        piece: stacker.piece ? Object.assign({}, stacker.piece) : null,
+        hold: stacker.hold,
+        queue: stacker.queue,
+        garbage: stacker.garbage.map(g => Object.assign({}, g)),
+        garbageTick: stacker.garbageTick,
+        combo: stacker.combos,
+        b2b: stacker.b2b,
+        spin: stacker._spin,
+        board,
+    };
+}
+
 function animate() {
     if (inputs === null) {
         return;
     }
     if (inputs.length === 0) {
         inputs = null;
+
+        if (stacker.isSpawnCollision()) {
+            isDead = true;
+            console.warn("spawn collision after move", {
+                piece: stacker.piece,
+                snapshot: getMismatchSnapshot(),
+            });
+            return;
+        }
 
         // normal update
         if (!stacker.garbageTick) {
@@ -60,21 +88,19 @@ function animate() {
             // gameMsg["back_to_back_num"] = stacker.b2b;
             bot.postMessage(gameMsg);
             // console.log(JSON.stringify(gameMsg));
-            // setTimeout(getSuggest, 200);
-            return;
             // // bot.postMessage({"type":"stop"});
         }
         // send tbp request to bot
         // count++;
         // if (count < 6)
-        // setTimeout(getSuggest, 200);
+        setTimeout(getSuggest, 100);
         return;
     }
     // inputs.shift();
     stacker.apply(inputs.shift());
     view.draw();
 }
-setInterval(animate, 70);
+setInterval(animate, 50);
 
 document.getElementById("next").addEventListener("click", function() {
     // console.log(this.id);
@@ -82,6 +108,9 @@ document.getElementById("next").addEventListener("click", function() {
 });
 
 function getSuggest() {
+    if (isDead) {
+        return;
+    }
     bot.postMessage({"type":"suggest"});
 }
 
@@ -115,18 +144,36 @@ export function start(botPath, atk) {
             case "ready":
                 bot.postMessage(gameMsg);
                 // bot.postMessage(getTestGameMsg());
-                // setTimeout(getSuggest, 200);
+                setTimeout(getSuggest, 100);
                 break;
             // do pathfinding and push to inputs then animate will process steps inside
             case "suggestion":
-                let move = m.data.moves[0];
+                let moves = Array.isArray(m.data.moves) ? m.data.moves : [];
+                let move = moves[0];
+                if (!move || !move.location) {
+                    console.warn("invalid suggestion payload", m.data);
+                    setTimeout(getSuggest, 100);
+                    break;
+                }
                 // console.log(move.location.type + " " + move.spin);
                 hold = stacker.hold;
-                console.log(JSON.stringify({"type":"play", "move":m.data.moves[0]}));
-                let steps = stacker.pathFinding(move.location, move.spin);
+                console.log(JSON.stringify({"type":"play", "move":move}));
+                let { steps, check } = stacker.pathFindingWithCheck(move.location, move.spin);
                 console.log("steps:");
                 console.log(steps);
-                bot.postMessage({"type":"play", "move":m.data.moves[0]});
+                console.log("landing:");
+                console.log(check.landing);
+                if (!check.matched) {
+                    console.warn("landing mismatch", {
+                        snapshot: getMismatchSnapshot(),
+                        move,
+                        steps,
+                        landing: check.landing,
+                        suggestion: check.expected,
+                        suggestion180: check.expected180,
+                    });
+                }
+                bot.postMessage({"type":"play", "move":move});
                 steps.push("delay");
                 inputs = steps;
                 break;

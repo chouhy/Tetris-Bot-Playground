@@ -1,4 +1,4 @@
-import ruleset from './ruleset.js';
+const ruleset = require('./ruleset.js');
 
 class Stacker {
     constructor() {
@@ -530,14 +530,6 @@ class PathFindingStacker extends TBPStacker {
             }
         }
     }
-    apply(op) {
-        super.apply(op);
-        if (op == "im" && this.piece !== null) {
-            this.piece.x = this._targetPeice.x;
-            this.piece.y = this._targetPeice.y;
-            this._computeGhost();
-        }
-    }
     _transformForPath(piece, tfs) {
         let { x, y, rotation } = piece;
         let attempt = 0;
@@ -779,25 +771,66 @@ class PathFindingStacker extends TBPStacker {
 
     pathFinding(location, spin, reverse = false) {
         super.pathFinding(location, spin);
-        let steps = [];
+        this._resetPathFindMap();
         let curPiece = this._targetPeice;
-        if (this.piece.type != curPiece.type) {
-            steps.push("hold");
+        let type = curPiece.type;
+        let [x, y] = ruleset.shapes[type].spawn;
+        let rotation = 'spawn';
+        let spawnPiece = { type, x, y, rotation, ghostY: null };
+        let test = [];
+        let steps = [];
+        this._resetPathFindMap();
+        this._pathFindMap[curPiece.x][curPiece.y][curPiece.rotation] = true;
+        // console.log(this._targetPeice);
+        if (this._pathFinding(curPiece, test)) {
+            if (this.piece.type != curPiece.type) {
+                steps.push("hold");
+            }
+            // simply move spawnPiece to curPiece position
+            if (curPiece.rotation == "reverse") {
+                steps.push("cw");
+                steps.push("cw");
+                this._transformForPath(spawnPiece, kicks(spawnPiece, "cw"));
+                this._transformForPath(spawnPiece, kicks(spawnPiece, "cw"));
+            }
+            if (curPiece.rotation == "right") {
+                steps.push("cw");
+                this._transformForPath(spawnPiece, kicks(spawnPiece, "cw"));
+            }
+            if (curPiece.rotation == "left") {
+                steps.push("ccw");
+                this._transformForPath(spawnPiece, kicks(spawnPiece, "ccw"));
+            }
+            while (spawnPiece.x != curPiece.x) {
+                if (spawnPiece.x > curPiece.x) {
+                    spawnPiece.x--;
+                    steps.push("left");
+                }
+                else {
+                    spawnPiece.x++;
+                    steps.push("right");
+                }
+            }
+            steps.push("sd");
+            // reverse test ops and fill inputs
+            while (test.length > 0) {
+                let op = reverseOp[test.pop().op];
+                if (op == "sd" && steps.length > 0 && steps.at(-1) == "sd") continue;
+                steps.push(op);
+            }
         }
-
-        if (curPiece.rotation == "reverse") {
-            steps.push("cw");
-            steps.push("cw");
+        else {
+            if (!reverse && ["I", "Z", "S"].includes(curPiece.type)) {
+                console.warn("pathFinding failed, trying to change orientation");
+                this._changeOrientaion(location);
+                return this.pathFinding(location, spin, true);
+            }
+            throw new Error("cannot drop this piece");
         }
-        if (curPiece.rotation == "right") {
-            steps.push("cw");
-        }
-        if (curPiece.rotation == "left") {
-            steps.push("ccw");
-        }
-
-        steps.push("im");
+        if (steps.at(-1) == "sd") steps.pop();
         steps.push("hd");
+        // console.log("steps");
+        // console.log(steps);
         return steps;
     }
     _changeOrientaion(location){
@@ -874,3 +907,5 @@ export {
     CheeseRaceStacker,
     minos
 };
+
+module.exports = { PathFindingStacker };

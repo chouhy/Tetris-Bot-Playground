@@ -16,4 +16,9 @@ done
 # Overlay app sources, but keep HTML shell from public/
 find "$ROOT_DIR/src" -mindepth 1 -maxdepth 1 ! -name '*.html' -exec cp -a {} "$DIST_DIR/" \;
 
+# Copy debug.html if it exists
+if [ -f "$ROOT_DIR/debug.html" ]; then
+  cp -a "$ROOT_DIR/debug.html" "$DIST_DIR/debug.html"
+fi
+
 echo "Built dist at: $DIST_DIR"
