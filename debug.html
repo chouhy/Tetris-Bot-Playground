@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoMisa Debug Mode</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4ec9b0;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: #0e639c;
+            color: #d4d4d4;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #1177bb;
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        input {
+            background: #3c3c3c;
+            color: #d4d4d4;
+            border: 1px solid #555;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .info-panel {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+        
+        .label {
+            color: #9cdcfe;
+            font-weight: bold;
+            min-width: 150px;
+        }
+        
+        .value {
+            color: #ce9178;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+        
+        .status-dot.active {
+            background: #4ec9b0;
+            box-shadow: 0 0 8px #4ec9b0;
+        }
+        
+        .status-dot.error {
+            background: #f48771;
+            box-shadow: 0 0 8px #f48771;
+        }
+        
+        .console {
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .log-line {
+            margin-bottom: 4px;
+        }
+        
+        .log-debug {
+            color: #7ca1ff;
+        }
+        
+        .log-pass {
+            color: #4ec9b0;
+        }
+        
+        .log-fail {
+            color: #f48771;
+        }
+        
+        .log-warn {
+            color: #dcdcaa;
+        }
+        
+        .log-info {
+            color: #d4d4d4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AutoMisa Debug Mode</h1>
+        
+        <div class="controls">
+            <div class="input-group">
+                <label for="duration">Duration (sec):</label>
+                <input type="number" id="duration" value="30" min="5" max="300">
+            </div>
+            <div class="input-group">
+                <label for="botPath">Bot Path:</label>
+                <input type="text" id="botPath" value="runtime/allspin/worker.js" style="flex: 1;">
+            </div>
+            <button id="startBtn">▶ Start Debug</button>
+            <button id="stopBtn" disabled>⏹ Stop</button>
+            <button id="exportBtn" disabled>📥 Export Results</button>
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-row">
+                <span class="label">Status:</span>
+                <div class="status">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Ready</span>
+                </div>
+            </div>
+            <div class="info-row">
+                <span class="label">Total Tests:</span>
+                <span class="value" id="totalTests">0</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Passed:</span>
+                <span class="value" id="passedTests">0</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Failed:</span>
+                <span class="value" id="failedTests">0</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Success Rate:</span>
+                <span class="value" id="successRate">0%</span>
+            </div>
+        </div>
+        
+        <div>
+            <h3 style="color: #4ec9b0; margin-bottom: 10px;">Console Output</h3>
+            <div class="console" id="consoleOutput"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Try to load from src/ or from relative directory
+        let DebugRunner, DebugAnalyzer;
+        try {
+            const runner = await import('./src/debug-runner.js');
+            const analyzer = await import('./src/debug-analyzer.js');
+            DebugRunner = runner.DebugRunner;
+            DebugAnalyzer = analyzer.DebugAnalyzer;
+        } catch (e) {
+            console.error('Failed to import modules from ./src/', e);
+            console.error('Please ensure the script runs from the project root directory');
+        }
+        
+        if (!DebugRunner || !DebugAnalyzer) {
+            document.body.innerHTML = '<h1>❌ Failed to load debug modules</h1><p>Please run this file from the AutoMisa project root directory.</p>';
+            throw new Error('Module loading failed');
+        }
+        
+        const debugRunner = new DebugRunner();
+        const consoleOutput = document.getElementById('consoleOutput');
+        const totalTestsEl = document.getElementById('totalTests');
+        const passedTestsEl = document.getElementById('passedTests');
+        const failedTestsEl = document.getElementById('failedTests');
+        const successRateEl = document.getElementById('successRate');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const durationInput = document.getElementById('duration');
+        const botPathInput = document.getElementById('botPath');
+        
+        // Intercept console methods
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        function addLog(message, type = 'info') {
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.textContent = message;
+            consoleOutput.appendChild(line);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog(...args);
+            addLog(args.join(' '), 'debug');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn(...args);
+            const msg = args.join(' ');
+            if (msg.includes('[PASS')) {
+                addLog(msg, 'pass');
+            } else if (msg.includes('[FAIL')) {
+                addLog(msg, 'fail');
+            } else {
+                addLog(msg, 'warn');
+            }
+        };
+        
+        console.error = function(...args) {
+            originalError(...args);
+            addLog(args.join(' '), 'fail');
+        };
+        
+        function updateStats() {
+            if (debugRunner.debugMode) {
+                totalTestsEl.textContent = debugRunner.debugMode.totalTests;
+                passedTestsEl.textContent = debugRunner.debugMode.successCases.length;
+                failedTestsEl.textContent = debugRunner.debugMode.failedCases.length;
+                const rate = debugRunner.debugMode.totalTests > 0 
+                    ? (debugRunner.debugMode.successCases.length / debugRunner.debugMode.totalTests * 100).toFixed(1)
+                    : 0;
+                successRateEl.textContent = rate + '%';
+            }
+        }
+        
+        function setStatus(status, type = 'info') {
+            statusText.textContent = status;
+            statusDot.className = 'status-dot';
+            if (type === 'active') statusDot.classList.add('active');
+            if (type === 'error') statusDot.classList.add('error');
+        }
+
+        function normalizeBotPath(path) {
+            if (!path) return 'runtime/allspin/worker.js';
+            if (path.endsWith('/cold_clear_2.js')) {
+                const normalized = path.replace('/cold_clear_2.js', '/worker.js');
+                addLog(`⚠️ bot path corrected to worker: ${normalized}`, 'warn');
+                return normalized;
+            }
+            return path;
+        }
+        
+        startBtn.addEventListener('click', async () => {
+            const duration = parseInt(durationInput.value) || 30;
+            const botPath = normalizeBotPath(botPathInput.value || 'runtime/allspin/worker.js');
+            botPathInput.value = botPath;
+            
+            consoleOutput.innerHTML = '';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            exportBtn.disabled = true;
+            durationInput.disabled = true;
+            botPathInput.disabled = true;
+            
+            setStatus('Running...', 'active');
+            addLog('🚀 Debug mode started');
+            
+            try {
+                const results = await debugRunner.runDebug(botPath, duration);
+                setStatus('Completed', 'active');
+                stopBtn.disabled = true;
+                exportBtn.disabled = false;
+                addLog('✅ Debug mode completed');
+                updateStats();
+            } catch (error) {
+                setStatus('Error: ' + error.message, 'error');
+                addLog('❌ Error: ' + error.message);
+            }
+        });
+        
+        stopBtn.addEventListener('click', () => {
+            if (debugRunner.debugMode) {
+                debugRunner.debugMode.stop();
+            }
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            durationInput.disabled = false;
+            botPathInput.disabled = false;
+            setStatus('Stopped');
+        });
+        
+        exportBtn.addEventListener('click', () => {
+            if (debugRunner.debugMode) {
+                const results = {
+                    summary: {
+                        totalTests: debugRunner.debugMode.totalTests,
+                        passed: debugRunner.debugMode.successCases.length,
+                        failed: debugRunner.debugMode.failedCases.length,
+                        successRate: debugRunner.debugMode.totalTests > 0 
+                            ? (debugRunner.debugMode.successCases.length / debugRunner.debugMode.totalTests * 100).toFixed(2) 
+                            : 0,
+                        timestamp: new Date().toISOString()
+                    },
+                    failedCases: debugRunner.debugMode.failedCases
+                };
+                
+                const analyzer = new DebugAnalyzer(results);
+                analyzer.generateReport();
+                analyzer.analyzePatterns();
+                analyzer.exportJSON();
+            }
+        });
+        
+        // Update stats every 500ms
+        setInterval(updateStats, 500);
+        
+        addLog('ℹ️ Debug mode ready. Set duration and bot path, then click Start.');
+    </script>
+</body>
+</html>
