@@ -135,7 +135,7 @@ let wasm_bindgen;
     }
 
     function __wbg_adapter_27(arg0, arg1) {
-        wasm._dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h14e81c62a7332fe4(arg0, arg1);
+        wasm._dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h21ae86d2889ed1f9(arg0, arg1);
     }
 
     const ServiceFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -155,8 +155,13 @@ let wasm_bindgen;
             const ptr = this.__destroy_into_raw();
             wasm.__wbg_service_free(ptr, 0);
         }
-        constructor() {
-            const ret = wasm.service_new();
+        /**
+         * @param {string | undefined} [config_json]
+         */
+        constructor(config_json) {
+            var ptr0 = isLikeNone(config_json) ? 0 : passStringToWasm0(config_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len0 = WASM_VECTOR_LEN;
+            const ret = wasm.service_new(ptr0, len0);
             this.__wbg_ptr = ret >>> 0;
             ServiceFinalization.register(this, this.__wbg_ptr, this);
             return this;
